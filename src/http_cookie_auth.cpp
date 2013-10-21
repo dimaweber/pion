@@ -86,7 +86,7 @@ bool cookie_auth::handle_request(http::request_ptr& http_request_ptr, tcp::conne
     }
 
     // user not found
-    handle_unauthorized(http_request_ptr,tcp_conn);
+    handle_unauthorized(http_request_ptr,tcp_conn,need_redirect(http_request_ptr));
     return false;
 }
     
@@ -98,6 +98,8 @@ void cookie_auth::set_option(const std::string& name, const std::string& value)
         m_logout = value;
     else if (name=="redirect")
         m_redirect = value;
+	else if (name=="omit_redirect")
+		m_omit_redirect = (value=="true")?true:false;
     else
         BOOST_THROW_EXCEPTION( error::bad_arg() << error::errinfo_arg_name(name) );
 }
@@ -124,7 +126,7 @@ bool cookie_auth::process_login(http::request_ptr& http_request_ptr, tcp::connec
         // match username/password
         user_ptr user=m_user_manager->get_user(username,password);
         if (!user) { // authentication failed, process as in case of failed authentication...
-            handle_unauthorized(http_request_ptr,tcp_conn);
+            handle_unauthorized(http_request_ptr,tcp_conn, false);
             return true;
         }
         // ok we have a new user session, create  a new cookie, add to cache
@@ -169,10 +171,10 @@ bool cookie_auth::process_login(http::request_ptr& http_request_ptr, tcp::connec
 }
 
 void cookie_auth::handle_unauthorized(http::request_ptr& http_request_ptr,
-    tcp::connection_ptr& tcp_conn)
+    tcp::connection_ptr& tcp_conn, bool needRedirect)
 {
     // if redirection option is used, send redirect
-    if (!m_redirect.empty()) {
+    if (!m_redirect.empty() && needRedirect) {
         handle_redirection(http_request_ptr,tcp_conn,m_redirect,"",false);
         return;
     }
@@ -224,10 +226,10 @@ void cookie_auth::handle_redirection(http::request_ptr& http_request_ptr,
     // ToDo: find a better workaround
     if (delete_cookie) {
         // remove cookie
-        writer->get_response().delete_cookie(AUTH_COOKIE_NAME,"");
+        writer->get_response().delete_cookie(AUTH_COOKIE_NAME,"/");
     } else if (!new_cookie.empty()) {
         // set up a new cookie
-        writer->get_response().set_cookie(AUTH_COOKIE_NAME, new_cookie,"");
+        writer->get_response().set_cookie(AUTH_COOKIE_NAME, new_cookie,"/");
     }
 
     writer->write_no_copy(CONTENT);
@@ -250,10 +252,10 @@ void cookie_auth::handle_ok(http::request_ptr& http_request_ptr,
     // ToDo: find a better workaround
     if (delete_cookie) {
         // remove cookie
-        writer->get_response().delete_cookie(AUTH_COOKIE_NAME,"");
+        writer->get_response().delete_cookie(AUTH_COOKIE_NAME,"/");
     } else if(!new_cookie.empty()) {
         // set up a new cookie
-        writer->get_response().set_cookie(AUTH_COOKIE_NAME, new_cookie,"");
+        writer->get_response().set_cookie(AUTH_COOKIE_NAME, new_cookie,"/");
     }
     writer->send();
 }

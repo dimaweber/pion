@@ -34,6 +34,39 @@ void auth::add_permit(const std::string& resource)
     PION_LOG_INFO(m_logger, "Set authentication permission for HTTP resource: " << clean_resource);
 }
 
+void auth::add_permit_extension(const std::string& resource)
+{
+	boost::mutex::scoped_lock resource_lock(m_resource_mutex);
+	const std::string clean_resource(http::server::strip_trailing_slash(resource));
+	m_whiteext_list.insert(clean_resource);
+	PION_LOG_INFO(m_logger, "Set authentication permission extension for HTTP resource: " << clean_resource);
+}
+
+void auth::add_force_redirect(const std::string& resource)
+{
+	boost::mutex::scoped_lock resource_lock(m_resource_mutex);
+	const std::string clean_resource(http::server::strip_trailing_slash(resource));
+	m_forceredirect_list.insert(clean_resource);
+	PION_LOG_INFO(m_logger, "Set redirect force for HTTP resource: " << clean_resource);
+}
+
+bool auth::need_redirect(const http::request_ptr& http_request) const
+{
+	if (!m_omit_redirect)
+		return true;
+
+	//if redirect is omited need to check force redirect list
+	std::string resource(http::server::strip_trailing_slash(http_request->get_resource()));
+
+	resource_set_type::const_iterator i = m_forceredirect_list.upper_bound(resource);
+	while (i != m_forceredirect_list.begin()) {
+		--i;
+		if (resource == *i)	return true;
+	}
+
+	return false;
+}
+
 bool auth::need_authentication(const http::request_ptr& http_request_ptr) const
 {
     // if no users are defined, authentication is never required
@@ -51,11 +84,26 @@ bool auth::need_authentication(const http::request_ptr& http_request_ptr) const
 
     // try to find resource in restricted list
     if (find_resource(m_restrict_list, resource)) {
-        // return true if white list is empty
-        if (m_white_list.empty())
-            return true;
-        // return false if found in white list, or true if not found
-        return ( ! find_resource(m_white_list, resource) );
+		// check white list if it not empty
+		if (!m_white_list.empty())
+			if (find_resource(m_white_list, resource))
+				return false;
+
+		// check also in extension list
+		if (!m_whiteext_list.empty())
+			if (find_resource_by_extension(m_whiteext_list, resource))
+				return false;
+
+		//if not found in both lists
+		return true;
+
+		/*// return true if white list is empty
+ 		if (m_white_list.empty())
+ 			return true;
+ 		// return false if found in white list, or true if not found
+		return ( ! findResource(m_white_list, resource) );
+		return ( ! findResource(m_white_list, resource) );*/
+
     }
     
     // resource not found in restricted list
@@ -78,6 +126,22 @@ bool auth::find_resource(const resource_set_type& resource_set,
         }
     }
     return false;
+}
+
+bool auth::find_resource_by_extension(const resource_set_type& resource_set,
+							const std::string& resource) const
+{
+	resource_set_type::const_iterator i;
+	for ( i = resource_set.begin() ; i != resource_set.end(); ++i ) {
+		//empty permit match all
+		if (i->empty()) return true;
+		
+		//if string ends with resource
+		if (resource.size() >= i->size())
+			if (resource.compare(resource.size() - i->size(), i->size(), *i) == 0)
+				return true;
+	}
+	return false;
 }
 
   

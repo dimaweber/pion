@@ -102,7 +102,7 @@ protected:
      * @param http_request_ptr the new HTTP request to handle
      * @param tcp_conn the TCP connection that has the new request
      */
-    void handle_unauthorized(http::request_ptr& http_request_ptr, tcp::connection_ptr& tcp_conn);
+    void handle_unauthorized(http::request_ptr& http_request_ptr, tcp::connection_ptr& tcp_conn, bool needRedirect = true);
     
     /**
      * used to send redirection responses 

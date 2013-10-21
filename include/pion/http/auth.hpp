@@ -83,6 +83,20 @@ public:
      */
     void add_permit(const std::string& resource);
 
+ 	/**
+	 * adds a resource extension that does NOT require authentication
+	 *
+	 * @param resource the resource extension name or uri-stem that does not require authentication
+	 */
+	void add_permit_extension(const std::string& resource);
+
+	/**
+	 * adds a resource extension that does require force redirect
+	 *
+	 * @param resource the resource name or uri-stem that does require force redirect
+	 */
+	void add_force_redirect(const std::string& resource);
+
     /**
      * used to add a new user
      *
@@ -126,6 +140,12 @@ protected:
     /// data type used to map authentication credentials to user objects
     typedef std::map<std::string,std::pair<boost::posix_time::ptime,user_ptr> >  user_cache_type;
     
+	/**
+	 * check if given HTTP request requires redirect
+	 *
+	 * @param http_request the HTTP request to check
+	 */
+	bool need_redirect(http::request_ptr const& http_request_ptr) const;
     
     /**
      * check if given HTTP request requires authentication
@@ -145,6 +165,17 @@ protected:
     bool find_resource(const resource_set_type& resource_set,
                       const std::string& resource) const;
 
+	/**
+	 * tries to find a resource by extension in a given extension collection
+	 * 
+	 * @param resource_set the collection of resource to look in
+	 * @param resource the resource to look for
+	 *
+	 * @return true if the resource was found
+	 */
+	bool find_resource_by_extension(const resource_set_type& resource_set,
+									const std::string& resource) const;
+
     /// sets the logger to be used
     inline void set_logger(logger log_ptr) { m_logger = log_ptr; }
     
@@ -161,8 +192,17 @@ protected:
     /// collection of resources that do NOT require authentication 
     resource_set_type       m_white_list;
 
+	/// collection of resources that do NOT require authentication 
+	resource_set_type		m_whiteext_list;
+
+	/// collection of resources that do require force redirect 
+	resource_set_type		m_forceredirect_list;
+
     /// mutex used to protect access to the resources
     mutable boost::mutex    m_resource_mutex;
+
+	/// value of "omit_redirect" option
+	bool					m_omit_redirect;
 };
 
 /// data type for a auth pointer
